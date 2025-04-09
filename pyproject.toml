@@ -1,9 +1,9 @@
 [project]
 name = "pyrandcracker"
 version = "0.1.0"
-description = "Add your description here"
+description = "a better random cracker can predict python random lib number"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.5"
 dependencies = [
     "numpy>=2.2.4",
 ]

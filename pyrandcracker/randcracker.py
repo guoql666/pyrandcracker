@@ -1,10 +1,12 @@
 class RandCracker:
-    def __init__(self):
+    def __init__(self, detail = False):
         self.rnd = None
         self.bit_count = 0
         self.counter = 0
         # bit_list example : [(1, 1), (number, bits), ...]
+        self.trange = __import__("tqdm").trange if detail else lambda x: range(x)
         self.bit_list = []
+        self.M = []
         self.MT19937_bit32_list = []
         self.use_martix = False
 
@@ -34,13 +36,12 @@ class RandCracker:
 
     
     def check(self, force_martix = False):
-
         if self.bit_count < 19968:
             raise ValueError("Not enough bits submitted. At least 19968 bits are required.")
 
         if self.use_martix or force_martix:
-            self.solve_martix()
-            return True
+            return self.solve_martix()
+            
         elif self.bit_count >= 19968:
             assert (len(self.MT19937_bit32_list) >= 624)
             self.MT19937_bit32_list = self.MT19937_bit32_list[-624:]
@@ -57,8 +58,82 @@ class RandCracker:
         self.MT19937_bit32_list.append(self._harden_inverse(bits))
 
 
-    def solve_martix(self):
-        pass
+    def _solve_martix(self):
+        n = len(self.bit_list)
+        
+        np = __import__("numpy")
+        random = __import__("random")
+        rng = random.Random()
+        for i in self.trange(19968):
+            state = [0]*624
+            temp = "0"*i + "1"*1 + "0"*(19968-1-i)
+            for j in range(624):
+                state[j] = int(temp[32*j:32*j+32],2)
+            rng.setstate((3,tuple(state+[624]),None)) 
+            
+            row = self.getRows(rng)
+            if len(row) != len(self.bit_list):
+                raise ValueError("Row length mismatch")
+            
+            self.M.append(row)
+
+        self.M = np.array(self.M, dtype=int) % 2
+
+        y = []
+        for num, bits in self.bit_list:
+            y.extend(list(map(int, bin(num)[2:].zfill(bits))))
+
+        y = np.array(y, dtype=int)
+
+        from pyrandcracker.matrix_utils import solve_left
+        try:
+            s = solve_left(self.M, y)
+        except ValueError as e:
+            print("solve_left error:", e)
+            return False
+        
+        G=[]
+        for i in range(624):
+            C=0
+            for j in range(32):
+                C<<=1
+                C|=int(s[32*i+j])
+            G.append(C)
+        
+        self.rnd = random.Random()
+        for i in range(624):
+            G[i]=int(G[i])
+        state_result = (int(3),tuple(G+[int(624)]),None)
+        self.rnd.setstate(state_result)
+        return True
+
+
+    def getRows(self, rng):
+        row=[]
+        for _, bits in self.bit_list:
+            row+=list(map(int, (bin(rng.getrandbits(bits))[2:].zfill(bits))))
+        return row
+
+
+    def set_generator_func(self, func):
+        """
+        This function generates a row of bits based on the random number generator (rng).
+        must same as your want to predict random method.
+
+        :param rng: A random number generator object with a method getrandbits(bits)
+            that generates a random number with the specified number of bits.
+        :return: A list of integers (0 or 1) representing the binary representation
+                of the generated random numbers concatenated together.
+
+        e.g.
+        def func(rng):
+            row=[]
+            for _, bits in self.bit_list:
+                #need to attention at zfill 
+                row+=list(map(int, (bin(rng.getrandbits(bits))[2:].zfill(bits))))
+            return row
+        """
+        self.getRows = func
 
 
     def _predict_32(self):
@@ -192,7 +267,7 @@ class RandCracker:
     def untwist(self):
         w, n, m = 32, 624, 397
         a = 0x9908B0DF
-        
+
         # I like bitshifting more than these custom functions...
         MT = [self._to_int(x) for x in self.MT19937_bit32_list]
 
