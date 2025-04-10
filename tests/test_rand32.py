@@ -56,19 +56,22 @@ def test_rand_func():
         rc.submit(num, 16)
     for num in data8:
         rc.submit(num, 8)
+    # breakpoint()
 
     # generate the rows, must same as submit data`s  generate method
     def getRows(rnd):
         rows = []
         for _ in range(624):
             rows += list(map(int, (bin(rnd.getrandbits(16))[2:].zfill(16)))) 
-        drop = rd.getrandbits(16)
+        drop = rnd.getrandbits(16)
         for _ in range(624*2):
             rows += list(map(int, (bin(rnd.getrandbits(8))[2:].zfill(8)))) 
         return rows
     
     rc.set_generator_func(getRows)
     rc.check()
+    
+    
     print(rd.getrandbits(16))
     print(rc.rnd.getrandbits(16))
 

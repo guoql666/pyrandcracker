@@ -28,14 +28,10 @@ class RandCracker:
         if bits % 32 == 0 and not self.use_martix:
             bits_round = bits // 32
             copy_num = num
-            submit_list = []
             for _ in range(bits_round):
-                submit_list.append(copy_num & 0xFFFFFFFF)
-                copy_num >>= 32
-            
-            for sub_num in submit_list:
+                sub_num = copy_num & 0xFFFFFFFF
                 self._submit(sub_num)
-        
+                copy_num >>= 32
         else:
             self.use_martix = True
         
@@ -43,17 +39,17 @@ class RandCracker:
         self.bit_list.append((num, bits))
 
     
-    def check(self, force_martix = False):
+    def check(self, force_martix = False, offset = False):
         if self.bit_count < 13397:
             raise ValueError("Not enough bits submitted. At least 19968 bits are required.")
 
         if self.use_martix or force_martix:
-            return self._solve_martix()
+            return self._solve_martix(offset = offset)
             
         elif self.bit_count >= 19937:
             assert (len(self.MT19937_state_list) >= 624)
             self.MT19937_state_list = self.MT19937_state_list[-624:]
-            self._regen()
+            self._regen(offset = offset)
             return True
         else:
             return False
@@ -69,7 +65,7 @@ class RandCracker:
         self.MT19937_state_list.append(self._harden_inverse(bits))
 
 
-    def _solve_martix(self):
+    def _solve_martix(self, offset = False):
         n = len(self.bit_list)
         
         np = __import__("numpy")
@@ -96,7 +92,7 @@ class RandCracker:
             y.extend(list(map(int, bin(num)[2:].zfill(bits))))
 
         y = np.array(y, dtype=int)
-
+        
         from .matrix_utils import solve_left
         try:
             s = solve_left(self.M, y, trange = self.trange)
@@ -119,8 +115,8 @@ class RandCracker:
         state_result = (int(3), tuple(G+[int(624)]), None)
         self.rnd.setstate(state_result)
 
-        for _, bits in self.bit_list:
-            self.rnd.getrandbits(bits)
+        if not offset:
+            self._getRows(self.rnd)
         
         return True
 
@@ -244,7 +240,7 @@ class RandCracker:
         return bits
 
 
-    def _regen(self):
+    def _regen(self, offset = False):
         # C code translated from python sources
         N = 624
         M = 397
@@ -268,9 +264,13 @@ class RandCracker:
         self.MT19937_state_list[N - 1] = self._xor_nums(self._xor_nums(self.MT19937_state_list[M - 1], y[:-1]), mag01[y[-1] & 1])
         
         self.rnd = __import__("random").Random()
-        self.untwist()
-        state = [self._to_int(x) for x in self.MT19937_state_list] + [624]
-        self.rnd.setstate((3, tuple(state), None))
+        if not offset:
+            self.untwist()
+            state = [self._to_int(x) for x in self.MT19937_state_list] + [624]
+            self.rnd.setstate((3, tuple(state), None))
+        else:
+            state = [self._to_int(x) for x in self.MT19937_state_list] + [624]
+            self.rnd.setstate((3, tuple(state), None))
 
 
     def untwist(self):
