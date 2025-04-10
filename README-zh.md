@@ -2,7 +2,7 @@
 
 **Pyrandcracker** 是一个可以预测 Python `random` 库生成随机数的工具。
 
-[English](./README.md) | [中文](./README-zh.md)
+[English](https://github.com/guoql666/pyrandcracker/blob/master/README.md) | [中文](https://github.com/guoql666/pyrandcracker/blob/master/README-zh.md)
 
 英文版由GPT-4o生成
 
