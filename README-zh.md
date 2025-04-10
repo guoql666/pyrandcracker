@@ -13,7 +13,7 @@ Pyrandcracker 利用随机数生成器（如 MT19937 算法）的特性，通过
 ## 功能特点
 - 支持任意比特位随机数进行运算
 - 迁移部分sagemath矩阵功能
-- 输入19937位随机数，预测其生成器内部状态
+- 输入至少19937位随机数，预测其生成器内部状态
 
 ## 安装
 
@@ -23,14 +23,16 @@ $ pip install pyrandcracker
 
 ## 使用方法
 
-### 32位提交
 项目支持任意比特位输入，仅需总提交位数高于19937位
+
+### 32位提交
+
 由于MT19937特性，项目对提交位数为32的任意倍进行优化。
 该优化仅适用于每次提交的均为32或其倍数位时有效。
 如果有时您强烈希望使用矩阵方法求解，您可以通过在调用solve方法时添加force_martix = True来强制使用矩阵方法求解。（不建议）
 
 ```python
-from randcracker import RandCracker
+from pyrandcracker import RandCracker
 import time
 # 初始化随机数生成器
 rd = random.Random()
@@ -57,7 +59,7 @@ print(f"predict next random number is {rc.rnd.getrandbits(32)}")
 此时可以通过对submit函数提交每次提交的比特位来告诉预测器，提交的数值对应的是多少位。
 
 ```python
-from randcracker import RandCracker
+from pyrandcracker import RandCracker
 import time
 # 初始化随机数生成器
 rd = random.Random()
@@ -82,7 +84,7 @@ print(f"predict next random number is {rc.rnd.getrandbits(16)}")
 预测器提供了set_generator_func函数接口，允许用户对非连续的状态提交自定义函数进行处理
 
 ```python
-from randcracker import RandCracker
+from pyrandcracker import RandCracker
 import time
 # 初始化随机数生成器
 rd = random.Random()
@@ -139,6 +141,6 @@ print(f"after offset, random number is {rc.rnd.getrandbits(32)}")
 ### 保留原生成器
 
 有时候，我们可能希望生成器下次生成的数正好是我们第一次提交的数，即保留原状态
-您当然可以通过offset方法实现这一目标。但如果使用了set_generator_func方法，且设置的函数较为复杂
+您当然可以通过offset方法实现这一目标。但如果使用了`set_generator_func`方法，且设置的函数较为复杂
 则程序可能会花费更长的时间去得到当前状态的随机数生成器，您不仅需要额外等待，且更为繁琐。
-因此，我们在solve中提供了offset参数，默认为False，您可以通过设置offset = True来获取原生成器。
+因此，我们在solve中提供了`offset`参数，默认为`False`，您可以通过设置`offset = True`来获取原生成器。

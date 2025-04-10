@@ -23,13 +23,15 @@ $ pip install pyrandcracker
 
 ## Usage
 
+The project supports input of numbers with any bit-length as long as the total submitted bits exceed 19937 bits.
+
 ### 32-bit Submission
-The project supports input of numbers with any bit-length as long as the total submitted bits exceed 19937 bits. Due to the properties of MT19937, the project is optimized when the number of submitted bits is a multiple of 32. This optimization is only effective when each submission is exactly 32 bits or a multiple thereof.
+ Due to the properties of MT19937, the project is optimized when the number of submitted bits is a multiple of 32. This optimization is only effective when each submission is exactly 32 bits or a multiple thereof.
 
 If you strongly prefer solving using matrix methods in certain cases, you can enforce this by passing `force_matrix = True` when calling the solve method. (Not recommended.)
 
 ```python
-from randcracker import RandCracker
+from pyrandcracker import RandCracker
 import time
 # Initialize the random number generator
 rd = random.Random()
@@ -55,7 +57,7 @@ print(f"predict next random number is {rc.rnd.getrandbits(32)}")
 Sometimes you might not be able to obtain bits in multiples of 32, and the number of bits you get may vary. In this case, you need to solve a system of linear equations. You can specify the number of bits of each submitted number through the second parameter of the submit function to inform the predictor.
 
 ```python
-from randcracker import RandCracker
+from pyrandcracker import RandCracker
 import time
 # Initialize the random number generator
 rd = random.Random()
@@ -80,7 +82,7 @@ Note that due to limitations with numpy and Python, the solving process may be r
 The built-in solver only supports consecutive random number submissions, but attackers often face situations where known information is discontinuous. If the specific generation process is known—such as knowing which parts of the data are discontinuous and how many random bits are skipped in-between—the internal state can still be recovered. The predictor provides the set_generator_func function to allow users to define a custom function for processing non-continuous submissions.
 
 ```python
-from randcracker import RandCracker
+from pyrandcracker import RandCracker
 import time
 # Initialize the random number generator
 rd = random.Random()
@@ -142,7 +144,7 @@ print(f"after offset, random number is {rc.rnd.getrandbits(32)}")
 ### Retaining the Original Generator
 
 Sometimes, we may want the generator’s next random number to match exactly the first number we submitted, effectively preserving the original state.
-You can certainly achieve this goal using the offset method. However, if you have used the set_generator_func method with a complex function, the program might take significantly longer to restore the random number generator to its current state. 
+You can certainly achieve this goal using the offset method. However, if you have used the `set_generator_func` method with a complex function, the program might take significantly longer to restore the random number generator to its current state. 
 This not only adds extra waiting time but also increases complexity.
 
 To address this, the solve method provides an `offset` parameter (default is `False`). By setting `offset = True`, you can retrieve the original generator directly.
