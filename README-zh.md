@@ -17,7 +17,9 @@ Pyrandcracker 利用随机数生成器（如 MT19937 算法）的特性，通过
 
 ## 安装
 
-尚未上传pypi等平台
+```bash
+$ pip install pyrandcracker
+```
 
 ## 使用方法
 

@@ -1,11 +1,11 @@
 [project]
 name = "pyrandcracker"
-version = "0.3.1"
+version = "0.3.2"
 description = "a better random cracker can predict python random lib number"
 readme = "README.md"
 requires-python = ">=3.5"
 dependencies = [
-    "numpy>=2.2.4",
+    "numpy",
     "tqdm",
 ]
 classifiers = [
