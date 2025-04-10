@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def gf2_gauss_elimination(matrix):
+def gf2_gauss_elimination(matrix, trange = range):
     """Performs Gaussian elimination on a matrix over GF(2) and returns the modified matrix, pivot columns, and original pivot rows."""
     mat = np.array(matrix, dtype=int).copy()
     m, n = mat.shape
@@ -10,7 +10,7 @@ def gf2_gauss_elimination(matrix):
     pivot_rows = []
 
     current_row = 0
-    for current_col in range(n):
+    for current_col in trange(n):
         if current_row >= m:
             break
         # Find the first 1 in the current column from current_row downwards
@@ -57,7 +57,7 @@ def gf2_solve(A, B):
     return x
 
 
-def solve_left(T, B, check=True):
+def solve_left(T, B, check = True, trange = range):
     '''
     solve XT=B
     input:
@@ -74,11 +74,11 @@ def solve_left(T, B, check=True):
     cause numpy vector not same as sagemath
     so X need be transposed
     '''
-    return solve_right(T.T, B, check=check).T
+    return solve_right(T.T, B, check = check, trange = trange).T
 
 
 
-def solve_right(T, B, check=True):
+def solve_right(T, B, check = True, trange = range):
     """Solves T @ x = B over GF(2) where T is a matrix and B is a vector."""
     T = np.array(T, dtype=int)
     B = np.array(B, dtype=int)
@@ -87,7 +87,7 @@ def solve_right(T, B, check=True):
         raise ValueError("B must be a vector of length equal to the rows of T")
     
     # Step 1: Gaussian elimination on T
-    _, pivot_cols, pivot_rows_T = gf2_gauss_elimination(T)
+    _, pivot_cols, pivot_rows_T = gf2_gauss_elimination(T, trange = trange)
     r = len(pivot_cols)
     if r == 0:
         if np.any(B != 0):
@@ -98,7 +98,7 @@ def solve_right(T, B, check=True):
     A = T[:, pivot_cols]
     
     # Step 3: Gaussian elimination on A to find pivot rows
-    _, _, A_pivot_rows = gf2_gauss_elimination(A)
+    _, _, A_pivot_rows = gf2_gauss_elimination(A, trange = trange)
     if len(A_pivot_rows) != r:
         raise ValueError("Unexpected error in matrix rank")
     

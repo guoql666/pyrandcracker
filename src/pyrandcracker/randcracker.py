@@ -2,13 +2,21 @@ class RandCracker:
     def __init__(self, detail = False):
         self.rnd = None
         self.bit_count = 0
-        self.counter = 0
+        if detail:
+            try:
+                self.trange = __import__("tqdm").trange
+            except ModuleNotFoundError:
+                print("Warning: tqdm module not found, using range instead.")
+                self.trange = range
+        else:
+            self.trange = range
+
         # bit_list example : [(1, 1), (number, bits), ...]
-        self.trange = __import__("tqdm").trange if detail else lambda x: range(x)
         self.bit_list = []
         self.M = []
-        self.MT19937_bit32_list = []
+        self.MT19937_state_list = []
         self.use_martix = False
+
 
     def submit(self, num: int, bits: int = 32):
         """
@@ -36,26 +44,29 @@ class RandCracker:
 
     
     def check(self, force_martix = False):
-        if self.bit_count < 19968:
+        if self.bit_count < 13397:
             raise ValueError("Not enough bits submitted. At least 19968 bits are required.")
 
         if self.use_martix or force_martix:
-            return self.solve_martix()
+            return self._solve_martix()
             
-        elif self.bit_count >= 19968:
-            assert (len(self.MT19937_bit32_list) >= 624)
-            self.MT19937_bit32_list = self.MT19937_bit32_list[-624:]
+        elif self.bit_count >= 19937:
+            assert (len(self.MT19937_state_list) >= 624)
+            self.MT19937_state_list = self.MT19937_state_list[-624:]
             self._regen()
             return True
         else:
             return False
         
 
+    def get_random(self):
+        return self.rnd
+
+
     def _submit(self, num: int):
         bits = self._to_bitarray(num)
         assert (all([x == 0 or x == 1 for x in bits]))
-        self.counter += 1
-        self.MT19937_bit32_list.append(self._harden_inverse(bits))
+        self.MT19937_state_list.append(self._harden_inverse(bits))
 
 
     def _solve_martix(self):
@@ -71,8 +82,9 @@ class RandCracker:
                 state[j] = int(temp[32*j:32*j+32],2)
             rng.setstate((3,tuple(state+[624]),None)) 
             
-            row = self.getRows(rng)
-            if len(row) != len(self.bit_list):
+            row = self._getRows(rng)
+            # breakpoint()
+            if len(row) != self.bit_count:
                 raise ValueError("Row length mismatch")
             
             self.M.append(row)
@@ -85,9 +97,9 @@ class RandCracker:
 
         y = np.array(y, dtype=int)
 
-        from pyrandcracker.matrix_utils import solve_left
+        from .matrix_utils import solve_left
         try:
-            s = solve_left(self.M, y)
+            s = solve_left(self.M, y, trange = self.trange)
         except ValueError as e:
             print("solve_left error:", e)
             return False
@@ -98,17 +110,22 @@ class RandCracker:
             for j in range(32):
                 C<<=1
                 C|=int(s[32*i+j])
+
             G.append(C)
         
         self.rnd = random.Random()
         for i in range(624):
             G[i]=int(G[i])
-        state_result = (int(3),tuple(G+[int(624)]),None)
+        state_result = (int(3), tuple(G+[int(624)]), None)
         self.rnd.setstate(state_result)
+
+        for _, bits in self.bit_list:
+            self.rnd.getrandbits(bits)
+        
         return True
 
 
-    def getRows(self, rng):
+    def _getRows(self, rng):
         row=[]
         for _, bits in self.bit_list:
             row+=list(map(int, (bin(rng.getrandbits(bits))[2:].zfill(bits))))
@@ -133,18 +150,7 @@ class RandCracker:
                 row+=list(map(int, (bin(rng.getrandbits(bits))[2:].zfill(bits))))
             return row
         """
-        self.getRows = func
-
-
-    def _predict_32(self):
-        if self.bit_count < 19968:
-            raise ValueError("Didn't recieve enough bits to predict")
-
-        if self.counter >= 624:
-            self._regen()
-        self.counter += 1
-
-        return self._harden(self.MT19937_bit32_list[self.counter - 1])
+        self._getRows = func
 
 
     def _to_bitarray(self, num):
@@ -251,25 +257,31 @@ class RandCracker:
         u_bits = self._to_bitarray(UPPER_MASK)
 
         for kk in range(0, N - M):
-            y = self._or_nums(self._and_nums(self.MT19937_bit32_list[kk], u_bits), self._and_nums(self.MT19937_bit32_list[kk + 1], l_bits))
-            self.MT19937_bit32_list[kk] = self._xor_nums(self._xor_nums(self.MT19937_bit32_list[kk + M], y[:-1]), mag01[y[-1] & 1])
+            y = self._or_nums(self._and_nums(self.MT19937_state_list[kk], u_bits), self._and_nums(self.MT19937_state_list[kk + 1], l_bits))
+            self.MT19937_state_list[kk] = self._xor_nums(self._xor_nums(self.MT19937_state_list[kk + M], y[:-1]), mag01[y[-1] & 1])
 
         for kk in range(N - M, N - 1):
-            y = self._or_nums(self._and_nums(self.MT19937_bit32_list[kk], u_bits), self._and_nums(self.MT19937_bit32_list[kk + 1], l_bits))
-            self.MT19937_bit32_list[kk] = self._xor_nums(self._xor_nums(self.MT19937_bit32_list[kk + (M - N)], y[:-1]), mag01[y[-1] & 1])
+            y = self._or_nums(self._and_nums(self.MT19937_state_list[kk], u_bits), self._and_nums(self.MT19937_state_list[kk + 1], l_bits))
+            self.MT19937_state_list[kk] = self._xor_nums(self._xor_nums(self.MT19937_state_list[kk + (M - N)], y[:-1]), mag01[y[-1] & 1])
 
-        y = self._or_nums(self._and_nums(self.MT19937_bit32_list[N - 1], u_bits), self._and_nums(self.MT19937_bit32_list[0], l_bits))
-        self.MT19937_bit32_list[N - 1] = self._xor_nums(self._xor_nums(self.MT19937_bit32_list[M - 1], y[:-1]), mag01[y[-1] & 1])
-
-        self.counter = 0
+        y = self._or_nums(self._and_nums(self.MT19937_state_list[N - 1], u_bits), self._and_nums(self.MT19937_state_list[0], l_bits))
+        self.MT19937_state_list[N - 1] = self._xor_nums(self._xor_nums(self.MT19937_state_list[M - 1], y[:-1]), mag01[y[-1] & 1])
+        
+        self.rnd = __import__("random").Random()
+        self.untwist()
+        state = [self._to_int(x) for x in self.MT19937_state_list] + [624]
+        self.rnd.setstate((3, tuple(state), None))
 
 
     def untwist(self):
+        if self.rnd is None:
+            raise ValueError("Random number generator not initialized.")
+        
         w, n, m = 32, 624, 397
         a = 0x9908B0DF
 
         # I like bitshifting more than these custom functions...
-        MT = [self._to_int(x) for x in self.MT19937_bit32_list]
+        MT = [self._to_int(x) for x in self.MT19937_state_list]
 
         for i in range(n-1, -1, -1):
             result = 0
@@ -286,13 +298,31 @@ class RandCracker:
             result |= (tmp << 1) & ((1 << w-1) - 1)
             MT[i] = result
 
-        self.MT19937_bit32_list = [self._to_bitarray(x) for x in MT]
+        self.MT19937_state_list = [self._to_bitarray(x) for x in MT]
 
 
     def offset(self, n):
+        if self.rnd is None:
+            raise ValueError("Random number generator not initialized.")
+        
         if n >= 0:
-            [self._predict_32() for _ in range(n)]
+            [self.rnd.getrandbits(32) for _ in range(n)]
         else:
-            [self.untwist() for _ in range(-n // 624 + 1)]
-            [self._predict_32() for _ in range(624 - (-n % 624))]
+            state = list(self.rnd.getstate()[1])
+            cycle = state[-1]
+            # hint: n is postive, cycle is negative
+            #       so pos actually equals cycle - abs(n)
+            pos = cycle + n
+            # print(pos, state[:-1])
+            if pos >= 1:
+                self.rnd.setstate((3, tuple(state[:-1] + [pos]), None)) 
+            else:
+                self.MT19937_state_list = [self._to_bitarray(x) for x in state[:-1] ]
+                [self.untwist() for _ in range(-n // 624 + 1)]
+                new_state = [self._to_int(x) for x in self.MT19937_state_list] + [624]
+                self.rnd.setstate((3, tuple(new_state), None))
+                [self.rnd.getrandbits(32) for _ in range(624 - (-n % 624) )]
+
+            # [self.untwist() for _ in range(-n // 624 + 1)]
+            # [self._predict_32() for _ in range(624 - (-n % 624))]
         
