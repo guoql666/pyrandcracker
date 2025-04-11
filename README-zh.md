@@ -11,6 +11,7 @@
 Pyrandcracker 利用随机数生成器（如 MT19937 算法）的特性，通过收集足够的随机数样本，逆向推导出生成器的内部状态，从而预测后续生成的随机数。
 
 ## 功能特点
+
 - 支持任意比特位随机数进行运算
 - 迁移部分sagemath矩阵功能
 - 输入至少19937位随机数，预测其生成器内部状态
@@ -18,7 +19,7 @@ Pyrandcracker 利用随机数生成器（如 MT19937 算法）的特性，通过
 ## 安装
 
 ```bash
-$ pip install pyrandcracker
+pip install pyrandcracker
 ```
 
 ## 使用方法
@@ -76,6 +77,7 @@ rc.check()
 print(f"next random number is {rd.getrandbits(16)}")
 print(f"predict next random number is {rc.rnd.getrandbits(16)}")
 ```
+
 需要注意的是，由于numpy和python语言限制，求解速度会相对较慢( 当最极端情况，如提交了19937个1bit时，预测时间可能会超过1小时，请耐心等待 )。后续会考虑使用cpython进行优化。
 
 ### 自定义函数预测提交
@@ -129,18 +131,37 @@ print(f"predict next random number is {rc.rnd.getrandbits(16)}")
 ### 移动你的生成器
 
 同时，预测器提供了offset函数，你可以自由的移动你的random随机数生成器。但注意，这里的偏移是按照每次生成小于等于32位随机数来计算的，如果你生成了64位随机数，则需要offset两次才能得到相同的答案。
+
 ```python
 # 这里假设你的rc已经成功得到预测了
-number = rc.getrandbits(32)
+number = rc.rnd.getrandbits(32)
 # 使用offset(-1)倒回到上一次预测
 rc.offset(-1)
 print(f"random number is {number}")
 print(f"after offset, random number is {rc.rnd.getrandbits(32)}")
 ```
 
+我们也提供了offset_bits函数，该函数接受一个int大小的数值，表示偏移多少bits。
+
+当bits大于等于0时，等效于rc.rnd.getrandbits(bits)。
+
+小于0时，自动计算所需的偏移量。并调用offset函数。
+
+```python
+# 这里假设你的rc已经成功得到预测了
+number = rc.rnd.getrandbits(150)
+# 使用offset(-150)倒回到上一次预测
+rc.offset_bits(-150)
+print(f"random number is {number}")
+print(f"after offset, random number is {rc.rnd.getrandbits(150)}")
+```
+
 ### 保留原生成器
 
-有时候，我们可能希望生成器下次生成的数正好是我们第一次提交的数，即保留原状态
-您当然可以通过offset方法实现这一目标。但如果使用了`set_generator_func`方法，且设置的函数较为复杂
+有时候，我们可能希望生成器下次生成的数正好是我们第一次提交的数，即保留原状态。
+
+您当然可以通过offset方法实现这一目标。但如果使用了`set_generator_func`方法，且设置的函数较为复杂。
+
 则程序可能会花费更长的时间去得到当前状态的随机数生成器，您不仅需要额外等待，且更为繁琐。
+
 因此，我们在solve中提供了`offset`参数，默认为`False`，您可以通过设置`offset = True`来获取原生成器。

@@ -33,6 +33,7 @@ def gf2_gauss_elimination(matrix, trange = range):
         current_row += 1
     return mat, pivot_cols, pivot_rows
 
+
 def gf2_solve(A, B):
     """Solves the equation Ax = B over GF(2) where A is a square matrix."""
     A = np.array(A, dtype=int)
@@ -68,14 +69,12 @@ def solve_left(T, B, check = True, trange = range):
     x: vector
     '''
 
-
     '''
     (XT)^T = T^T * X^T = B^T
     cause numpy vector not same as sagemath
     so X need be transposed
     '''
     return solve_right(T.T, B, check = check, trange = trange).T
-
 
 
 def solve_right(T, B, check = True, trange = range):

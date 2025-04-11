@@ -1,11 +1,11 @@
 
 import os
 import sys
+import random
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.pyrandcracker import RandCracker
-import random
 
 
 def test_rand32():
@@ -43,7 +43,7 @@ def test_rand16():
     rc.check()
     print(rd.getrandbits(16))
     print(rc.rnd.getrandbits(16))
-    # breakpoint()
+
 
 def test_rand_func():
     rd = random.Random()
@@ -56,7 +56,6 @@ def test_rand_func():
         rc.submit(num, 16)
     for num in data8:
         rc.submit(num, 8)
-    # breakpoint()
 
     # generate the rows, must same as submit data`s  generate method
     def getRows(rnd):
@@ -67,13 +66,11 @@ def test_rand_func():
         for _ in range(624*2):
             rows += list(map(int, (bin(rnd.getrandbits(8))[2:].zfill(8)))) 
         return rows
-    
+    pass
+
     rc.set_generator_func(getRows)
     rc.check()
-    
-    
     print(rd.getrandbits(16))
     print(rc.rnd.getrandbits(16))
 
-if __name__ == "__main__":
-    test_rand_func()
+

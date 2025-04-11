@@ -265,7 +265,7 @@ class RandCracker:
         
         self.rnd = __import__("random").Random()
         if not offset:
-            self.untwist()
+            self._untwist()
             state = [self._to_int(x) for x in self.MT19937_state_list] + [624]
             self.rnd.setstate((3, tuple(state), None))
         else:
@@ -273,7 +273,7 @@ class RandCracker:
             self.rnd.setstate((3, tuple(state), None))
 
 
-    def untwist(self):
+    def _untwist(self):
         if self.rnd is None:
             raise ValueError("Random number generator not initialized.")
         
@@ -313,16 +313,21 @@ class RandCracker:
             # hint: n is postive, cycle is negative
             #       so pos actually equals cycle - abs(n)
             pos = cycle + n
-            # print(pos, state[:-1])
+
             if pos >= 1:
                 self.rnd.setstate((3, tuple(state[:-1] + [pos]), None)) 
             else:
                 self.MT19937_state_list = [self._to_bitarray(x) for x in state[:-1] ]
-                [self.untwist() for _ in range(-n // 624 + 1)]
+                [self._untwist() for _ in range(-n // 624 + 1)]
                 new_state = [self._to_int(x) for x in self.MT19937_state_list] + [624]
                 self.rnd.setstate((3, tuple(new_state), None))
                 [self.rnd.getrandbits(32) for _ in range(624 - (-n % 624) )]
 
-            # [self.untwist() for _ in range(-n // 624 + 1)]
-            # [self._predict_32() for _ in range(624 - (-n % 624))]
-        
+    
+    def offset_bits(self, bits):
+        if bits >= 0:
+            self.rnd.getrandbits(bits)
+        else:
+            rounds = (-bits) // 32
+            plus = 0 if (-bits) % 32 == 0 else 1
+            self.offset(-(rounds + plus))

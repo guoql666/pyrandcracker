@@ -11,6 +11,7 @@ English Version is generate by GPT-4o
 Pyrandcracker leverages the properties of random number generators (such as the MT19937 algorithm) by collecting enough random number samples to reverse-engineer the generator’s internal state and thus predict future random numbers.
 
 ## Features
+
 - Supports operations on random numbers with any number of bits.
 - Migrates some functions from the SageMath matrix module.
 - Predicts the generator’s internal state when provided with at least 19937 bits of random numbers.
@@ -18,7 +19,7 @@ Pyrandcracker leverages the properties of random number generators (such as the 
 ## Installation
 
 ```bash
-$ pip install pyrandcracker
+pip install pyrandcracker
 ```
 
 ## Usage
@@ -26,6 +27,7 @@ $ pip install pyrandcracker
 The project supports input of numbers with any bit-length as long as the total submitted bits exceed 19937 bits.
 
 ### 32-bit Submission
+
  Due to the properties of MT19937, the project is optimized when the number of submitted bits is a multiple of 32. This optimization is only effective when each submission is exactly 32 bits or a multiple thereof.
 
 If you strongly prefer solving using matrix methods in certain cases, you can enforce this by passing `force_matrix = True` when calling the solve method. (Not recommended.)
@@ -75,6 +77,7 @@ rc.check()
 print(f"next random number is {rd.getrandbits(16)}")
 print(f"predict next random number is {rc.rnd.getrandbits(16)}")
 ```
+
 Note that due to limitations with numpy and Python, the solving process may be relatively slow (in the worst-case scenario, such as submitting 19937 numbers of 1 bit each, the prediction might take over an hour, so please be patient). Future optimizations with C-Python will be considered.
 
 ### Custom Function Prediction for Submissions
@@ -128,23 +131,41 @@ print(f"predict next random number is {rc.rnd.getrandbits(16)}")
 
 ### Moving Your Generator
 
-The predictor also provides an offset function so you can freely move your random number generator. 
+The predictor also provides an offset function so you can freely move your random number generator.
+
 However, note that the offset is calculated based on submissions of random numbers that are 32 bits or less.
+
 If you generate a 64-bit random number, you need to apply the offset function twice to get the same result.
 
 ```python
 # Assuming rc has successfully predicted the state
-number = rc.getrandbits(32)
+number = rc.rnd.getrandbits(32)
 # Use offset(-1) to roll back to the previous prediction
 rc.offset(-1)
 print(f"random number is {number}")
 print(f"after offset, random number is {rc.rnd.getrandbits(32)}")
 ```
 
+We also provide the offset_bits function, which takes an integer value representing the number of bits to offset.
+
+When bits is greater than or equal to 0, it is equivalent to rc.rnd.getrandbits(bits).
+
+When bits is less than 0, the required offset is automatically calculated, and the offset function is called.
+
+```python
+# 这里假设你的rc已经成功得到预测了
+number = rc.rnd.getrandbits(150)
+# 使用offset(-150)倒回到上一次预测
+rc.offset_bits(-150)
+print(f"random number is {number}")
+print(f"after offset, random number is {rc.rnd.getrandbits(150)}")
+```
+
 ### Retaining the Original Generator
 
 Sometimes, we may want the generator’s next random number to match exactly the first number we submitted, effectively preserving the original state.
-You can certainly achieve this goal using the offset method. However, if you have used the `set_generator_func` method with a complex function, the program might take significantly longer to restore the random number generator to its current state. 
+You can certainly achieve this goal using the offset method. However, if you have used the `set_generator_func` method with a complex function, the program might take significantly longer to restore the random number generator to its current state.
+
 This not only adds extra waiting time but also increases complexity.
 
 To address this, the solve method provides an `offset` parameter (default is `False`). By setting `offset = True`, you can retrieve the original generator directly.
