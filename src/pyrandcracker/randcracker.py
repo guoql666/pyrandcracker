@@ -25,6 +25,9 @@ class RandCracker:
         :param bits: The number of bits in the random number (default is 32).
         """
 
+        if num.bit_length() <= bits:
+            ValueError("The number of bits in num is greater than the specified bits.")
+
         if bits % 32 == 0 and not self.use_martix:
             bits_round = bits // 32
             copy_num = num
@@ -39,12 +42,12 @@ class RandCracker:
         self.bit_list.append((num, bits))
 
     
-    def check(self, force_martix = False, offset = False):
+    def check(self, force_martix = False, offset = False, force_sage = False, force_numpy = False):
         if self.bit_count < 13397:
             raise ValueError("Not enough bits submitted. At least 19968 bits are required.")
 
         if self.use_martix or force_martix:
-            return self._solve_martix(offset = offset)
+            return self._solve_martix(offset = offset, force_sage = force_sage, force_numpy = force_numpy)
             
         elif self.bit_count >= 19937:
             assert (len(self.MT19937_state_list) >= 624)
@@ -65,7 +68,7 @@ class RandCracker:
         self.MT19937_state_list.append(self._harden_inverse(bits))
 
 
-    def _solve_martix(self, offset = False):
+    def _solve_martix(self, offset = False, force_sage = False, force_numpy = False):
         n = len(self.bit_list)
         
         np = __import__("numpy")
@@ -79,27 +82,32 @@ class RandCracker:
             rng.setstate((3,tuple(state+[624]),None)) 
             
             row = self._getRows(rng)
-            # breakpoint()
+
             if len(row) != self.bit_count:
                 raise ValueError("Row length mismatch")
             
             self.M.append(row)
 
-        self.M = np.array(self.M, dtype=int) % 2
+        use_sage = True
 
-        y = []
-        for num, bits in self.bit_list:
-            y.extend(list(map(int, bin(num)[2:].zfill(bits))))
-
-        y = np.array(y, dtype=int)
-        
-        from .matrix_utils import solve_left
         try:
-            s = solve_left(self.M, y, trange = self.trange)
-        except ValueError as e:
-            print("solve_left error:", e)
+            sage = __import__("sage.all")
+        except ModuleNotFoundError:
+            use_sage = False
+
+        if force_sage and not use_sage:
+            raise ModuleNotFoundError("sagemath module not found")
+
+        if use_sage and not force_numpy:
+            s = self._solve_matrix_with_sagemath(sage)
+        else:
+            s = self._solve_matrix_with_numpy(np)
+        
+        if s is False:
             return False
         
+        s = np.array(s, dtype = int)
+            
         G=[]
         for i in range(624):
             C=0
@@ -119,6 +127,40 @@ class RandCracker:
             self._getRows(self.rnd)
         
         return True
+
+
+    def _solve_matrix_with_numpy(self, np):
+        self.M = np.array(self.M, dtype=int) % 2
+
+        y = []
+        for num, bits in self.bit_list:
+            y.extend(list(map(int, bin(num)[2:].zfill(bits))))
+
+        y = np.array(y, dtype=int)
+        
+        from .matrix_utils import solve_left
+        try:
+            s = solve_left(self.M, y, trange = self.trange)
+        except ValueError as e:
+            print("solve_left error:", e)
+            return False
+        return [int(i) for i in s]
+
+
+    def _solve_matrix_with_sagemath(self, sage):
+        self.M = sage.Matrix(sage.GF(2), self.M)
+
+        y=[]
+        for num, bits in self.bit_list:
+            y.extend(list(map(int, bin(num)[2:].zfill(bits))))
+        y = sage.vector(sage.GF(2), y)
+        try:
+            s = self.M.solve_left(y)
+        except Exception as e:
+            print("solve_left error:", e)
+            return False
+        return [int(i) for i in s]
+
 
 
     def _getRows(self, rng):

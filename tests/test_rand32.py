@@ -74,3 +74,5 @@ def test_rand_func():
     print(rc.rnd.getrandbits(16))
 
 
+if __name__ == "__main__":
+    test_rand16()

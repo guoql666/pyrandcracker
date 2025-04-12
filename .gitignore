@@ -6,6 +6,7 @@ dist/
 wheels/
 *.egg-info
 .vscode
+build.bat
 
 uv.lock
 # Virtual environments
