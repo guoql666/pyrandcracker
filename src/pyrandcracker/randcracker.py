@@ -148,12 +148,16 @@ class RandCracker:
 
 
     def _solve_matrix_with_sagemath(self, sage):
-        self.M = sage.Matrix(sage.GF(2), self.M)
+        GF = sage.rings.finite_rings.finite_field_constructor.GF
+        vector = sage.modules.free_module_element.vector
+        Matrix = sage.matrix.constructor.Matrix
+
+        self.M = Matrix(GF(2), self.M)
 
         y=[]
         for num, bits in self.bit_list:
             y.extend(list(map(int, bin(num)[2:].zfill(bits))))
-        y = sage.vector(sage.GF(2), y)
+        y = vector(GF(2), y)
         try:
             s = self.M.solve_left(y)
         except Exception as e:
