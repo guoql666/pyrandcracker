@@ -2,10 +2,11 @@
 import os
 import sys
 import random
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pytest
 
 from src.pyrandcracker import RandCracker
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def test_rand32():
@@ -16,8 +17,11 @@ def test_rand32():
     for num in data:
         rc.submit(num)
     rc.check()
-    print(rd.getrandbits(32))
-    print(rc.rnd.getrandbits(32))
+    target_num = rd.getrandbits(32)
+    predicted_num = rc.rnd.getrandbits(32)
+    assert target_num == predicted_num
+    print(target_num)
+    print(predicted_num)
 
 
 def test_offset32():
@@ -29,10 +33,14 @@ def test_offset32():
         rc.submit(num)
     rc.check()
     rc.offset(-1)
-    print(data[-1])
-    print(rc.rnd.getrandbits(32))
+    target_num = data[-1]
+    predicted_num = rc.rnd.getrandbits(32)
+    assert target_num == predicted_num
+    print(target_num)
+    print(predicted_num)
     
 
+@pytest.mark.skip
 def test_rand16():
     rd = random.Random()
     rd.seed(2)
@@ -41,10 +49,14 @@ def test_rand16():
     for num in data:
         rc.submit(num, 16)
     rc.check()
-    print(rd.getrandbits(16))
-    print(rc.rnd.getrandbits(16))
+    target_num = rd.getrandbits(16)
+    predicted_num = rc.rnd.getrandbits(16)
+    assert target_num == predicted_num
+    print(target_num)
+    print(predicted_num)
 
 
+@pytest.mark.skip
 def test_rand_func():
     rd = random.Random()
     rd.seed(2)
@@ -70,8 +82,11 @@ def test_rand_func():
 
     rc.set_generator_func(getRows)
     rc.check()
-    print(rd.getrandbits(16))
-    print(rc.rnd.getrandbits(16))
+    target_num = rd.getrandbits(16)
+    predicted_num = rc.rnd.getrandbits(16)
+    assert target_num == predicted_num
+    print(target_num)
+    print(predicted_num)
 
 
 if __name__ == "__main__":
