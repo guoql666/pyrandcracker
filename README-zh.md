@@ -1,20 +1,26 @@
 # Pyrandcracker
 
-**Pyrandcracker** 是一个可以预测 Python `random` 库生成随机数的工具。
+**Pyrandcracker** 通过收集 Python `random.Random`（MT19937）的输出，反推其内部状态，
+从而预测后续随机数。
 
-[English](https://github.com/guoql666/pyrandcracker/blob/master/README.md) | [中文](https://github.com/guoql666/pyrandcracker/blob/master/README-zh.md)
+[English](README.md) | [中文](README-zh.md)
 
-英文版由GPT-4o生成
+## 原理
 
-## 项目简介
+实现遵循 MT19937 的规范态（canonical state）模型：
 
-Pyrandcracker 利用随机数生成器（如 MT19937 算法）的特性，通过收集足够的随机数样本，逆向推导出生成器的内部状态，从而预测后续生成的随机数。
+* 预测状态共 **19937 比特**（下一个原始字的低 31 位不影响输出流）；
+* 一个完整的 32 位输出是一个可逆（已 temper）的状态字，因此 624 个连续字即可直接确定状态；
+* 截断输出（`getrandbits(v)`，`v < 32` 时返回一个字的高 `v` 位）是状态上的线性函数，
+  因此恢复问题转化为 GF(2) 上的线性方程组。
 
-## 功能特点
+程序自动选择三条恢复路径：
 
-- 支持任意比特位随机数进行运算
-- 迁移部分sagemath矩阵功能
-- 输入至少19937位随机数，预测其生成器内部状态
+| 输入 | 方法 | 实测开销 |
+| --- | --- | --- |
+| 32 位的整数倍 | 精确 untemper | 624 字 = 19968 比特，瞬间完成 |
+| 均匀 5 比特 | 论文的载波/扩展态构造反演 | 4984 次调用，约 3.8 秒 |
+| 其他任意宽度 | 位打包 GF(2) 消元 | 4~22 秒（见性能） |
 
 ## 安装
 
@@ -22,146 +28,166 @@ Pyrandcracker 利用随机数生成器（如 MT19937 算法）的特性，通过
 pip install pyrandcracker
 ```
 
-## 使用方法
+## 用法
 
-项目支持任意比特位输入，仅需总提交位数高于19937位
+理论上至少需要 19937 个观测比特（即状态维数）。当已提交的比特无法唯一确定状态时，
+求解器会直接报错，而不是静默返回一个错误的状态。
 
-### 32位提交
-
-由于MT19937特性，项目对提交位数为32的任意倍进行优化。
-该优化仅适用于每次提交的均为32或其倍数位时有效。
-如果有时您强烈希望使用矩阵方法求解，您可以通过在调用solve方法时添加force_martix = True来强制使用矩阵方法求解。（不建议）
+### 32 位输出
 
 ```python
-from pyrandcracker import RandCracker
+import random
 import time
-# 初始化随机数生成器
+from pyrandcracker import RandCracker
+
 rd = random.Random()
 rd.seed(time.time())
-# 初始化预测器
+
 rc = RandCracker()
+for _ in range(624):
+    rc.submit(rd.getrandbits(32))      # 624 字 = 19968 比特
 
-data = [rd.getrandbits(64) for _ in range(312)]
-for num in data:
-    # 提交共计312 * 64 = 19968位
-    rc.submit(num)
-# 检查是否可解并自动求解
-rc.check()
-
-print(f"next random number is {rd.getrandbits(32)}")
-# 除了可以使用rc.rnd来获取破解后的Random类外，也可以使用rc.get_random函数来显式获取并保存变量
-print(f"predict next random number is {rc.rnd.getrandbits(32)}")
+rc.check()                             # 返回 True；rc.rnd 此时位于已提交输出之后
+print(rd.getrandbits(32))
+print(rc.rnd.getrandbits(32))          # 结果相同
 ```
 
-### 任意位数提交
-
-但有时候我们并不一定都能获取到32的倍数位，有可能会或多或少
-此时需要对线性方程组进行求解。
-此时可以通过对submit函数提交每次提交的比特位来告诉预测器，提交的数值对应的是多少位。
+### 截断输出（任意宽度）
 
 ```python
+import random
 from pyrandcracker import RandCracker
-import time
-# 初始化随机数生成器
+
 rd = random.Random()
-rd.seed(time.time())
-# 初始化预测器, detail参数会调用tqdm库的trange，来显示进度条，但会稍微影响性能并造成不必要的输出
-# 默认detail参数为False
-rc = RandCracker(detail = True)
-data = [rd.getrandbits(16) for _ in range(624*2)]
-for num in data:
-    # 提交共计624*2*16 = 19968位，当然提交多了也可以进行计算
-    rc.submit(num, 16)
-# 检查是否可解并自动求解
+rd.seed(1)
+
+rc = RandCracker()
+for _ in range(624 * 2):
+    rc.submit(rd.getrandbits(16), 16)  # 19968 比特的 16 位值
+
 rc.check()
-print(f"next random number is {rd.getrandbits(16)}")
-print(f"predict next random number is {rc.rnd.getrandbits(16)}")
+print(rd.getrandbits(16))
+print(rc.rnd.getrandbits(16))
 ```
 
-需要注意的是，由于numpy和python语言限制，求解速度会相对较慢( 当最极端情况，如提交了19937个1bit时，预测时间可能会超过1小时，请耐心等待 )。后续会考虑使用cpython进行优化。
+均匀宽度 `getrandbits(v)` 的最小恢复时域：
 
-### 自定义函数预测提交
+| v | 1 | 2 | 3 | 4 | 5 | 6 | 8 | 16 | 32 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 调用次数 | 19937 | 9969 | 6849 | 4985 | 4984 | 3738 | 2493 | 1247 | 624 |
 
-内置的求解器仅可以求解连续的随机数提交，但攻击者经常会遇到已知的信息不连续的情况，如果能获取其具体的生成情况，如知道已知信息中哪些是不连续的，且知道中间间隔了多少个多少比特的随机数，则仍然可以进行恢复。
-预测器提供了set_generator_func函数接口，允许用户对非连续的状态提交自定义函数进行处理
+以上都是**最小**量：提交多于最小值同样会被接受。32 位快路径只取最后 624 个字；
+五比特路径用前 4984 次求解、再对全部提交值做回放校验；通用路径把每一个提交比特
+都纳入线性方程组（超定但相容）。例如提交 2000 个 16 位值（32000 比特）约 7 秒恢复。
+
+### 5 比特输出（构造性路径）
 
 ```python
+import random
 from pyrandcracker import RandCracker
-import time
-# 初始化随机数生成器
-rd = random.Random()
-rd.seed(time.time())
-# 初始化预测器
-rc = RandCracker(detail = False)
-# 先生成了624位16位数
-data16 = [rd.getrandbits(16) for _ in range(624)]
-# 中间舍弃了1个16位随机数
-drop = rd.getrandbits(16)
-# 然后生成了624*2个8位的随机数
-data8 = [rd.getrandbits(8) for _ in range(624*2)]
-for num in data16:
-    # 提交624个16位随机数
-    rc.submit(num, 16)
-for num in data8:
-    # 提交624*2个8位随机数
-    rc.submit(num, 8)
 
-# 自定义函数，接受一个Random类，该Random类来自内置库random，要求函数内部必须与实际生成情况一致，但可以值不相同
-# 如在本例，先提交了624个16位随机数，然后舍弃一个16位随机数后，又提交了1248个8位随机数
-# 那么在其中，你也必须先使用传入的rnd参数对其先生成624个16位随机数，然后舍弃一个16位随机数后，再生成1248个8位随机数
+rd = random.Random()
+rd.seed(2)
+
+rc = RandCracker()
+for _ in range(4984):
+    rc.submit(rd.getrandbits(5), 5)
+
+rc.check()
+print(rd.getrandbits(5))
+print(rc.rnd.getrandbits(5))
+```
+
+### 不连续的观测
+
+如果观测值之间存在被跳过的调用，用 `set_generator_func` 描述精确的生成过程。
+该函数在一个生成器上重放该过程，并返回观测到的比特（每个值内部高位在前）：
+
+```python
+import random
+from pyrandcracker import RandCracker
+
+rd = random.Random()
+rd.seed(3)
+
+rc = RandCracker()
+for _ in range(624):
+    rc.submit(rd.getrandbits(16), 16)
+rd.getrandbits(32)                     # 一个被跳过的字（未提交）
+for _ in range(1872):
+    rc.submit(rd.getrandbits(8), 8)
+
 def getRows(rnd):
     rows = []
     for _ in range(624):
-        # 这里需要注意，list(map(int, (bin() ))是必要的，且zfill也需要与对应位数保持一致
-        # 即生成16位，zfill中也需要填16, 下同。
-        rows += list(map(int, (bin(rnd.getrandbits(16))[2:].zfill(16)))) 
-    drop = rnd.getrandbits(16)
-    for _ in range(624*2):
-        rows += list(map(int, (bin(rnd.getrandbits(8))[2:].zfill(8)))) 
-    # 最后返回一个列表，列表长度是提交的总位数，列表的每一位均是0或1
+        rows += list(map(int, bin(rnd.getrandbits(16))[2:].zfill(16)))
+    rnd.getrandbits(32)                # 被跳过的调用
+    for _ in range(1872):
+        rows += list(map(int, bin(rnd.getrandbits(8))[2:].zfill(8)))
     return rows
-# 通过set_generator_func传入自定义的函数
+
 rc.set_generator_func(getRows)
-# 检查是否可解并自动求解
 rc.check()
-print(f"next random number is {rd.getrandbits(16)}")
-print(f"predict next random number is {rc.rnd.getrandbits(16)}")
+print(rd.getrandbits(16))
+print(rc.rnd.getrandbits(16))
 ```
 
-### 移动你的生成器
+并非任意缺口都可恢复：当观测位置无法确定状态时，求解器会抛出 `ValueError`（见下）。
 
-同时，预测器提供了offset函数，你可以自由的移动你的random随机数生成器。但注意，这里的偏移是按照每次生成小于等于32位随机数来计算的，如果你生成了64位随机数，则需要offset两次才能得到相同的答案。
+### 移动生成器
 
 ```python
-# 这里假设你的rc已经成功得到预测了
 number = rc.rnd.getrandbits(32)
-# 使用offset(-1)倒回到上一次预测
-rc.offset(-1)
-print(f"random number is {number}")
-print(f"after offset, random number is {rc.rnd.getrandbits(32)}")
+rc.offset(-1)                          # 回退一个 32 位字
+print(rc.rnd.getrandbits(32) == number)
+
+rc.offset_bits(-150)                   # 回退 150 比特（按字对齐）
 ```
 
-我们也提供了offset_bits函数，该函数接受一个int大小的数值，表示偏移多少bits。
+`check(offset=True)` 会把生成器定位到"重放已提交序列的第一个观测"，而不是继续其后。
 
-当bits大于等于0时，等效于rc.rnd.getrandbits(bits)。
+## 性能
 
-小于0时，自动计算所需的偏移量。并调用offset函数。
+环境 Python 3.13（Windows），随机种子 `350234`，每种宽度使用论文的最小恢复时域
+（`n_min(v)` 次调用）：
 
-```python
-# 这里假设你的rc已经成功得到预测了
-number = rc.rnd.getrandbits(150)
-# 使用offset(-150)倒回到上一次预测
-rc.offset_bits(-150)
-print(f"random number is {number}")
-print(f"after offset, random number is {rc.rnd.getrandbits(150)}")
-```
+| v | 调用 | 比特 | 耗时 | v | 调用 | 比特 | 耗时 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 19937 | 19937 | 6.2 s | 17 | 1247 | 21199 | 4.2 s |
+| 2 | 9969 | 19938 | 4.8 s | 18 | 1247 | 22446 | 4.5 s |
+| 3 | 6849 | 20547 | 5.8 s | 19 | 1246 | 23674 | 5.7 s |
+| 4 | 4985 | 19940 | 4.3 s | 20 | 1246 | 24920 | 6.4 s |
+| 5 | 4984 | 24920 | 3.8 s | 21 | 1246 | 26166 | 7.3 s |
+| 6 | 3738 | 22428 | 7.7 s | 22 | 1246 | 27412 | 8.4 s |
+| 7 | 3115 | 21805 | 9.0 s | 23 | 1246 | 28658 | 10.2 s |
+| 8 | 2493 | 19944 | 4.4 s | 24 | 1246 | 29904 | 11.5 s |
+| 9 | 2492 | 22428 | 5.0 s | 25 | 1246 | 31150 | 11.3 s |
+| 10 | 2492 | 24920 | 5.9 s | 26 | 1246 | 32396 | 14.8 s |
+| 11 | 1869 | 20559 | 4.9 s | 27 | 1246 | 33642 | 17.6 s |
+| 12 | 1869 | 22428 | 5.6 s | 28 | 1246 | 34888 | 19.9 s |
+| 13 | 1869 | 24297 | 6.6 s | 29 | 1246 | 36134 | 21.7 s |
+| 14 | 1869 | 26166 | 6.7 s | 30 | 1246 | 37380 | 8.1 s |
+| 15 | 1869 | 28035 | 7.1 s | 31 | 1246 | 38626 | 8.1 s |
+| 16 | 1247 | 19952 | 4.1 s | | | | |
 
-### 保留原生成器
+31 种宽度全部恢复成功并正确预测下一个值。耗时主要来自两部分：构建观测矩阵
+（近似常数，每个规范基态一次批量 `getrandbits`）与 GF(2) 消元（成本取决于矩阵
+填充量，因此对宽度并不单调——v = 29 是最慢点，21.7 秒）。
 
-有时候，我们可能希望生成器下次生成的数正好是我们第一次提交的数，即保留原状态。
+作为对比，原实现（稠密 `int64`）在这些输入上需要小时级：它为每个原始基态重放
+整段 schedule，并对"每个比特占一个 64 位整数"的矩阵跑 Python 级行循环（每次行
+异或的内存流量约为现在的 60 倍）。
 
-您当然可以通过offset方法实现这一目标。但如果使用了`set_generator_func`方法，且设置的函数较为复杂。
+## 正确性说明
 
-则程序可能会花费更长的时间去得到当前状态的随机数生成器，您不仅需要额外等待，且更为繁琐。
+* **信息下界为 19937 比特。** 比特不足时 `check()` 一律返回 `False`；而比特够多但
+  观测模式不佳（例如同样的宽度组合换了顺序）时，状态仍可能无法确定——此时
+  `check()` 会抛错，而不是返回错误状态。
+* **顺序有影响。** 相同的宽度多重集，改变顺序可能导致可恢复或不可恢复。
+* 兼容旧参数 `force_martix`、`force_sage`、`force_numpy`：`force_martix` 会禁用
+  快速 untemper 与五比特路径；`force_sage` 在安装了 SageMath 时使用其 M4RI 消元
+  （见 `pyrandcracker.sagemath_support`）。
 
-因此，我们在solve中提供了`offset`参数，默认为`False`，您可以通过设置`offset = True`来获取原生成器。
+## 许可
+
+MIT
