@@ -1,15 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "pyrandcracker"
-version = "0.3.5"
-description = "a better random cracker can predict python random lib number"
+version = "0.4.0"
+description = "Recover Python random.Random state from its outputs (MT19937)"
 readme = "README.md"
-requires-python = ">=3.5"
+requires-python = ">=3.9"
 dependencies = [
     "numpy",
     "tqdm",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
 ]
@@ -17,3 +21,9 @@ classifiers = [
 [project.urls]
 "Homepage" = "https://github.com/guoql666"
 "Bug Tracker" = "https://github.com/guoql666/pyrandcracker/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

@@ -11,3 +11,6 @@ build.bat
 uv.lock
 # Virtual environments
 .venv
+
+# pytest
+.pytest_cache/
